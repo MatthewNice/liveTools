@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 from filterpy.kalman import KalmanFilter
 import time
 
-#Author: Derek Gloudemans, with modifications by Matthew Nice
+#Author: Derek Gloudemans, Matthew Nice
 #Contact: matthew.nice@vanderbilt.edu
 
 def match_hungarian(first,second,iou_cutoff = 0.5):
@@ -33,6 +33,30 @@ def match_hungarian(first,second,iou_cutoff = 0.5):
 
     return matchings
 
+def match_radar(first, second, dist_cutoff = 10):
+    """
+    performs matching of points in first to second
+    inputs - N x 2 arrays of object x and y coordinates from different frames
+    output - M x 1 array where index i corresponds to the second frame object
+    matched to the first frame object i
+    """
+    # find distances between first and second
+    dist = np.zeros([len(first),len(second)])
+    # print(first,second)
+    for i in range(0,len(first)):
+        for j in range(0,len(second)):
+            dist[i,j] = np.sqrt((first[i,0]-second[j,0])**2 + (first[i,1]-second[j,1])**2)
+
+    matchings = np.zeros([len(first),1])-1
+    for i in range(0,len(first)):
+        for j in dist[i]:
+            if j < dist_cutoff:
+                if matchings[i][0]==-1:
+                    matchings[i][0] = j
+                else:
+                    matchings[i].append(j)
+    print(matchings)
+    return matchings
 
 class KF_Object():
     """
@@ -119,7 +143,7 @@ class KF_Tracker():
         self.id_counter = 0
         self.frame_num = 0
         self.delta_t = delta_t
-
+        print('test')
         self.has_lead_object = False
 
 
@@ -130,7 +154,7 @@ class KF_Tracker():
         detections - [n x 2] Numpy array of xy coordinates for all detected objects
         returns - dictionary of xy coords (1x2 numpy) keyed by object ids
         """
-
+        print('tests')
         # 1. predict new locations of all objects x_k | x_k-1
         for obj in self.active_objs:
             obj.predict()
@@ -143,8 +167,9 @@ class KF_Tracker():
 
         # 3. match - these arrays are both N x 2
         # remove matches with IOU below threshold (i.e. too far apart)
-        matches = match_hungarian(locations,detections)
-
+        # need change matching algorithm
+        matches = match_radar(locations,detections)
+        print(matches)
         # traverse object list
         move_to_inactive = []
         for i in range(0,len(self.active_objs)):
@@ -160,11 +185,14 @@ class KF_Tracker():
 
             # update Kalman filter
             else: # object was matched
-                measure_coords = detections[matches[i]]
-                obj.update(measure_coords)
-                obj.fsld = 0
-                obj.all.append(obj.get_coords())
-                obj.tags.append(1) # indicates object detected in this frame
+                #need to change to allow for multiple matched measurements in detections.
+                #add for j in matches[i], update kalman filter
+                for j in matches[i]:
+                    measure_coords = detections[matches[i][j]]
+                    obj.update(measure_coords)
+                    obj.fsld = 0
+                    obj.all.append(obj.get_coords())
+                    obj.tags.append(1) # indicates object detected in this frame
 
         # for all unmatched objects, intialize new object
         for j in range(0,len(detections)):

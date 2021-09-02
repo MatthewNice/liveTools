@@ -25,6 +25,7 @@ def database(filename):
 db2 = database('RAV4.dbc')
 
 def connectPanda():
+    print('this is the version in Github folder')
     try:
         p = Panda() #create panda object
     except:
@@ -88,7 +89,7 @@ def clusterRadar(radar_batch):
     # Dx2 observations in the radar_batch, returns a cluster label for each point
     return cluster.fit_predict(radar_batch)
 
-def getClusteredRadar(pandaObject):
+def getClusteredRadar(pandaObject, writer = None):
     """This function returns a radar sensor measurement from the leading object.
     It returns the position coordinates and the relative velocity.
 
@@ -103,9 +104,12 @@ def getClusteredRadar(pandaObject):
     tstart = time.time()
     leadMeasurement = 3
 
-    while (end == False) & (tstart + 1 > time.time()): #one second timeout
+    while (end == False) & (tstart + .33 > time.time()): #one second timeout
         # print('loop')
         can_recv = pandaObject.can_recv()
+        if writer != None:
+            for address, _, dat, src  in can_recv:
+                writer.writerow(([currTime, str(src), str((address)), len(dat), str(binascii.hexlify(dat).decode('utf-8'))]))
         radar = getRadar(can_recv,addRelv=True) #lat, lon coordinates, relv from radar sensor
         newLeadMeasurement = getLeadDist(can_recv) #869 measurement. Reliable true positive for lead object.
         # print(radar,newLeadMeasurement)
@@ -200,27 +204,3 @@ def liveRadar(p,depth, width,lat100,lon100,fig,ax):
     if lat != None and abs(lat) < width and lon < depth:
         updateLast100(lat100,lon100,lat,lon)
         plotLiveRadar(fig,ax,depth,width,lat100,lon100)
-
-# def plotLiveRadar(fig,ax,depth, width,lat100,lon100):
-#     #does this work when called within liveradar??
-#     # global fig
-#     # global ax
-#     batch = list(zip(lat100,lon100)) #this is what needs to be given to the clustering
-#     labels = clusterRadar(batch)
-#     # print(labels)
-#     # line, = ax.plot(lat100,lon100, marker = '.', c = labels)
-#     line, = ax.plot(lat100[-1],lon100[-1],marker='.',markersize = 15)
-#     # line.set_ydata(lon) USING set_DATA is FASTER, TRANSITION TO USING THIS
-#     # line.set_xdata(lat)
-#     line2, = ax.plot(lat100[-15:-1],lon100[-15:-1],marker='.',ls = '',markersize = 10)
-#     line3, = ax.plot(lat100[-30:-15],lon100[-30:-15],marker='.',ls='',markersize = 5)
-#
-#     ax.draw_artist(ax.patch)
-#     ax.draw_artist(line)
-#     ax.draw_artist(line2)
-#     ax.draw_artist(line3)
-#     fig.canvas.update()
-#     fig.canvas.flush_events()
-#     # if turnSignal == 'left':
-#     #     plt.cla()
-#     return None

@@ -20,12 +20,12 @@ try:
                     brake = lt.getBrake(can_recv)
                 if lt.getGear(can_recv) != None:
                     gear = lt.getGear(can_recv)
-                if lt.getSteering(can_recv) != None:
-                    steer = lt.getSteering(can_recv)
+                if lt.getSetSpeed(can_recv) != None:
+                    set_speed = lt.getSetSpeed(can_recv)
         # x = lt.liveTest(p)
             # print(x)
             # if steer != 0:
-                print('Turn Signal: ',turnSignal,'Brake: ',brake,'PRNDS: ', gear, 'Steer Angle: ',steer,end='\r')
+                print('Turn Signal: ',turnSignal,'Brake: ',brake,'Set Speed (kph): ', set_speed,end='\r')
         else:
             print('No device connected.')
             break
