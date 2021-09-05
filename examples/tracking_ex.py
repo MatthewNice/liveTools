@@ -14,6 +14,7 @@ if __name__ == "__main__":
 
     for i in range(0,500):
         # plot the points to visually confirm that it seems to be working
+
         x_coords = []
         y_coords = []
         for key in tracked_objects:
@@ -38,12 +39,15 @@ if __name__ == "__main__":
             if detections.shape[0] >= 1:
                 destroyed = np.random.randint(detections.shape[0])
                 # print(tracked_objects[destroyed].id)
+                print(tracker.all_objs())
                 print('destroyed detection!')
+
                 detections = np.delete(detections,destroyed,0)
 
 
         # input updated detections to tracker
         tracked_objects = tracker(detections)
+        print(tracked_objects)
         # print(tracker.active_objs[0].get_x(),tracked_objects)
         # for i in tracker.inactive_objs:
         #     print(i.id)
