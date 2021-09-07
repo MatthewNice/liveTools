@@ -17,9 +17,11 @@ def match_hungarian(first,second,iou_cutoff = 1):
     matched to the first frame object i
     """
     # find distances between first and second
+    second = np.array(second)
     dist = np.zeros([len(first),len(second)])
     # print(first,second)
     matchings = np.zeros(len(first))-1
+
     for i in range(0,len(first)):
         for j in range(0,len(second)):
             dist[i,j] = np.sqrt((first[i,0]-second[j,0])**2 + (first[i,1]-second[j,1])**2)
@@ -102,24 +104,26 @@ class KF_Object():
         state = np.zeros([4,1])
         state[0,0] = xy[0]
         state[1,0] = xy[1]
+	state[2,0] = xy[2]
 
         # state transition matrix
         F = np.identity(4)
         for i in range(0,2):
-            F[i,i+2] = t
+            F[i,2] = t
 
         # initialize measurement transition matrix
-        H = np.zeros([2,4])
+        H = np.zeros([3,4])
         H[0,0] = 1
         H[1,1] = 1
+	H[2,2] = 1
         # print(state_err)
 
         # initialize Kalman Filter to track object
-        self.kf = KalmanFilter(dim_x = 4, dim_z = 2)
+        self.kf = KalmanFilter(dim_x = 4, dim_z = 3)
         self.kf.x = state # state
         self.kf.P *= state_err # state error covariance matrix
         self.kf.Q = np.identity(4)*mod_err # model error covariance matrix
-        self.kf.R = np.identity(2)* meas_err # measurement error covariance matrix
+        self.kf.R = np.identity(3)* meas_err # measurement error covariance matrix
         self.kf.F = F
         self.kf.H = H
 
@@ -177,7 +181,7 @@ class KF_Tracker():
         returns - dictionary of xy coords (1x2 numpy) keyed by object ids
         """
         # print('tests')
-        dist_max = 3 # for now this is set to a constant, but in the future can be set to correspond to the SD of the kalman prediction
+        dist_max = 1 # for now this is set to a constant, but in the future can be set to correspond to the SD of the kalman prediction
         # 1. predict new locations of all objects x_k | x_k-1
         for obj in self.active_objs:
             obj.predict()
@@ -193,7 +197,8 @@ class KF_Tracker():
         # need change matching algorithm
         # print('locations: ', locations, 'detections: ',detections)
         distances, matches = match_hungarian(locations, detections)
-        # print('matches are: ', matches)
+	print('detections in match', len(detections))
+       # print('matches are: ', matches)
         # traverse object list
         move_to_inactive = []
         for i in range(0,len(self.active_objs)):
@@ -251,17 +256,22 @@ class KF_Tracker():
                 #     obj.tags.append(1) # indicates object detected in this frame
 
         # for all unmatched objects, intialize new object
-
-        for j in range(0,len(detections)):
+	print('crazy detections:',len(distances))
+        if len(self.active_objs) > 0:
+		jlength = len(distances)
+	else: jlength = len(detections)
+	for j in range(0,jlength):
             # print('detections[j]', detections[j])
 
             # print('matches',matches)
             # print([detections[j].tolist() in x for x in matches], 'should make new object if False')
             # try:
-            if len(matches) != 0 and (len(self.active_objs) <=16):
-                if (j not in matches) or (j in falseMatch):
+            if len(matches) != 0 and (len(self.active_objs) <16) and (len(detections) > 0):
+                print('matches',matches,'falsematch',falseMatch)
+		if (j not in matches) or (j in falseMatch):
                     # print('j not in matches')
-                    print(np.min([x[j] for x in distances]))
+                    print('j = ',j, 'distances:',distances)
+		    print(np.min([x[j] for x in distances]))
                     if  np.min([x[j] for x in distances]) > dist_max:
                         # print('Making new object at: ', detections[j])
                         new_obj = KF_Object(detections[j],
@@ -275,9 +285,10 @@ class KF_Tracker():
                         new_obj.tags.append(1) # indicates object detected in this frame
                         self.active_objs.append(new_obj)
                         self.id_counter += 1
-            elif len(matches) == 0 and (len(self.active_objs) == 0):
+            elif len(matches) == 0 and (len(self.active_objs) == 0) and (len(detections)>0):
                 # print('Making new object at: ', detections[j])
-                new_obj = KF_Object(detections[j],
+                print('len(matches) == 0 and no active objects')
+		new_obj = KF_Object(detections[j],
                                     self.id_counter,
                                     self.frame_num,
                                     self.delta_t,
