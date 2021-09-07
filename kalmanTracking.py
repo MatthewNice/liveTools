@@ -25,7 +25,7 @@ def match_hungarian(first,second,iou_cutoff = 1):
     for i in range(0,len(first)):
         for j in range(0,len(second)):
             dist[i,j] = np.sqrt((first[i,0]-second[j,0])**2 + (first[i,1]-second[j,1])**2)
-        if np.argmin(dist[i]) not in matchings:
+        if (np.argmin(dist[i]) not in matchings) and (np.argmin(dist[i]) < iou_cutoff):
             # print(a)
             matchings[i]=np.argmin(dist[i])
     # print('distances: ',dist)
@@ -197,7 +197,7 @@ class KF_Tracker():
         # need change matching algorithm
         # print('locations: ', locations, 'detections: ',detections)
         distances, matches = match_hungarian(locations, detections)
-	print('detections in match', len(detections))
+        print('detections in match', len(detections))
        # print('matches are: ', matches)
         # traverse object list
         move_to_inactive = []
@@ -207,7 +207,7 @@ class KF_Tracker():
             # update fsld and delete if too high
             # print('')
             # try:
-            falseMatch = np.array([])
+            # falseMatch = np.array([])
             if matches[i] == -1:
                 # print('match not detected')
                 obj.fsld += 1
@@ -218,24 +218,24 @@ class KF_Tracker():
                     move_to_inactive.append(i)
                     print('object %d inactive'%obj.id)
             else:
-                if distances[i][matches[i]]< dist_max:
+            #     if distances[i][matches[i]]< dist_max:
                     # print('updating kalman location')
-                    measure_coords = detections[matches[i]]
-                    # print('measure_coords:', measure_coords)
-                    obj.update(measure_coords)
-                    obj.fsld = 0
-                    obj.all.append(obj.get_coords())
-                    obj.tags.append(1) # indicates object detected in this frame
-                else:
-                    # print('false match')
-                    np.append(falseMatch, matches[i])
-                    obj.fsld += 1
-                    obj.all.append(obj.get_coords())
-                    obj.tags.append(0) # indicates object not detected in this frame
-                    print('fsld: ',obj.fsld)
-                    if obj.fsld > self.fsld_max:
-                        move_to_inactive.append(i)
-                        print('object %d inactive'%obj.id)
+                measure_coords = detections[matches[i]]
+                # print('measure_coords:', measure_coords)
+                obj.update(measure_coords)
+                obj.fsld = 0
+                obj.all.append(obj.get_coords())
+                obj.tags.append(1) # indicates object detected in this frame
+                # else:
+                #     # print('false match')
+                #     np.append(falseMatch, matches[i])
+                #     obj.fsld += 1
+                #     obj.all.append(obj.get_coords())
+                #     obj.tags.append(0) # indicates object not detected in this frame
+                #     print('fsld: ',obj.fsld)
+                #     if obj.fsld > self.fsld_max:
+                #         move_to_inactive.append(i)
+                #         print('object %d inactive'%obj.id)
                     #need to figure out how to figure out how to deal with fake matches
                     # matches = np.delete(matches,i)
                     # i -= 1
@@ -256,49 +256,50 @@ class KF_Tracker():
                 #     obj.tags.append(1) # indicates object detected in this frame
 
         # for all unmatched objects, intialize new object
-	print('crazy detections:',len(distances))
+        print('crazy detections:',len(distances))
         if len(self.active_objs) > 0:
-		jlength = len(distances)
-	else: jlength = len(detections)
-	for j in range(0,jlength):
-            # print('detections[j]', detections[j])
+            jlength = len(distances)
+        else:
+            jlength = len(detections)
+        for j in range(0,len(detections)):
+                # print('detections[j]', detections[j])
 
-            # print('matches',matches)
-            # print([detections[j].tolist() in x for x in matches], 'should make new object if False')
-            # try:
+                # print('matches',matches)
+                # print([detections[j].tolist() in x for x in matches], 'should make new object if False')
+                # try:
             if len(matches) != 0 and (len(self.active_objs) <16) and (len(detections) > 0):
-                print('matches',matches,'falsematch',falseMatch)
-		if (j not in matches) or (j in falseMatch):
-                    # print('j not in matches')
-                    print('j = ',j, 'distances:',distances)
-		    print(np.min([x[j] for x in distances]))
-                    if  np.min([x[j] for x in distances]) > dist_max:
-                        # print('Making new object at: ', detections[j])
-                        new_obj = KF_Object(detections[j],
-                                            self.id_counter,
-                                            self.frame_num,
-                                            self.delta_t,
-                                            self.mod_err,
-                                            self.meas_err,
-                                            self.state_err)
-                        new_obj.all.append(new_obj.get_coords())
-                        new_obj.tags.append(1) # indicates object detected in this frame
-                        self.active_objs.append(new_obj)
-                        self.id_counter += 1
-            elif len(matches) == 0 and (len(self.active_objs) == 0) and (len(detections)>0):
-                # print('Making new object at: ', detections[j])
-                print('len(matches) == 0 and no active objects')
-		new_obj = KF_Object(detections[j],
-                                    self.id_counter,
-                                    self.frame_num,
-                                    self.delta_t,
-                                    self.mod_err,
-                                    self.meas_err,
-                                    self.state_err)
-                new_obj.all.append(new_obj.get_coords())
-                new_obj.tags.append(1) # indicates object detected in this frame
-                self.active_objs.append(new_obj)
-                self.id_counter += 1
+            #         print('matches',matches,'falsematch',falseMatch)
+    		      if (j not in matches):
+                        # print('j not in matches')
+                        print('j = ',j, 'distances:',distances)
+                        print(np.min([x[j] for x in distances]))
+                        if  np.min([x[j] for x in distances]) > dist_max:
+                            # print('Making new object at: ', detections[j])
+                            new_obj = KF_Object(detections[j],
+                                                self.id_counter,
+                                                self.frame_num,
+                                                self.delta_t,
+                                                self.mod_err,
+                                                self.meas_err,
+                                                self.state_err)
+                            new_obj.all.append(new_obj.get_coords())
+                            new_obj.tags.append(1) # indicates object detected in this frame
+                            self.active_objs.append(new_obj)
+                            self.id_counter += 1
+                    elif len(matches) == 0 and (len(self.active_objs) == 0) and (len(detections)>0):
+                    # print('Making new object at: ', detections[j])
+                        print('len(matches) == 0 and no active objects')
+                		new_obj = KF_Object(detections[j],
+                                                    self.id_counter,
+                                                    self.frame_num,
+                                                    self.delta_t,
+                                                    self.mod_err,
+                                                    self.meas_err,
+                                                    self.state_err)
+                                new_obj.all.append(new_obj.get_coords())
+                                new_obj.tags.append(1) # indicates object detected in this frame
+                                self.active_objs.append(new_obj)
+                                self.id_counter += 1
             # except:
             #     #make a new object because there are no matches
             #     print('exception thingy')
