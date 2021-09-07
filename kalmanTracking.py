@@ -8,7 +8,7 @@ import time
 #Author: Derek Gloudemans, Matthew Nice
 #Contact: matthew.nice@vanderbilt.edu
 
-def match_hungarian(first,second,iou_cutoff = 0.5):
+def match_hungarian(first,second,iou_cutoff = 1):
     """
     performs  optimal (in terms of sum distance) matching of points
     in first to second using the Hungarian algorithm
@@ -22,16 +22,17 @@ def match_hungarian(first,second,iou_cutoff = 0.5):
     for i in range(0,len(first)):
         for j in range(0,len(second)):
             dist[i,j] = np.sqrt((first[i,0]-second[j,0])**2 + (first[i,1]-second[j,1])**2)
-
+    # print('distances: ',dist)
     a, b = linear_sum_assignment(dist)
 
+    # print(a,b)
     # convert into expected form
     matchings = np.zeros(len(first))-1
     for idx in range(0,len(a)):
         matchings[a[idx]] = b[idx]
     matchings = np.ndarray.astype(matchings,int)
 
-    return matchings
+    return dist, matchings
 
 def match_radar(first, second, dist_cutoff = 10):
     """
@@ -41,21 +42,37 @@ def match_radar(first, second, dist_cutoff = 10):
     matched to the first frame object i
     """
     # find distances between first and second
-    dist = np.zeros([len(first),len(second)])
+    # dist = np.zeros([len(first),len(second)])
+    dist = [[0]*len(second) for i in range(0,len(first))]
     # print(first,second)
     for i in range(0,len(first)):
         for j in range(0,len(second)):
-            dist[i,j] = np.sqrt((first[i,0]-second[j,0])**2 + (first[i,1]-second[j,1])**2)
+            dist[i][j] = np.sqrt((first[i][0]-second[j][0])**2 + (first[i][1]-second[j][1])**2)
 
-    matchings = np.zeros([len(first),1])-1
+    # matchings = np.zeros([len(first),1])-1
+    matchings = [[-1]]*len(first)
+    # print(matchings)
+    # print('first: ', first)
+    # print('second:', second)
+    # print('distance:', dist)
     for i in range(0,len(first)):
-        for j in dist[i]:
-            if j < dist_cutoff:
-                if matchings[i][0]==-1:
-                    matchings[i][0] = j
-                else:
-                    matchings[i].append(j)
-    print(matchings)
+        # print(dist[i])
+        for j in range(0,len(dist[i])):
+            # print('the dist is:' + str(dist[i][j]))
+            if abs(dist[i][j]) < dist_cutoff:
+                # print('matchings: ',matchings)
+                try:
+                    if matchings[0]==[-1]:
+                        print(second[j])
+                        matchings[i][0] = second[j].tolist()
+                        # print('first match')
+                    else:
+                        matchings[i].append(second[j].tolist())
+                        # print('subsequent match')
+                except:
+                    # matchings[i].append(second[j].tolist())
+                    print('matching error')
+    # print(matchings)
     return matchings
 
 class KF_Object():
@@ -123,7 +140,7 @@ class KF_Object():
 
 
 class KF_Tracker():
-    def __init__(self,delta_t,mod_err=1,meas_err=1,state_err=1,fsld_max = 10):
+    def __init__(self,delta_t,mod_err=1,meas_err=1,state_err=1,fsld_max = 3):
         """
         Initializes tracker
         delta_t - (float) - time in seconds between detections
@@ -143,7 +160,7 @@ class KF_Tracker():
         self.id_counter = 0
         self.frame_num = 0
         self.delta_t = delta_t
-        print('test')
+        # print('test')
         self.has_lead_object = False
 
 
@@ -154,7 +171,8 @@ class KF_Tracker():
         detections - [n x 2] Numpy array of xy coordinates for all detected objects
         returns - dictionary of xy coords (1x2 numpy) keyed by object ids
         """
-        print('tests')
+        # print('tests')
+        dist_max = 3 # for now this is set to a constant, but in the future can be set to correspond to the SD of the kalman prediction
         # 1. predict new locations of all objects x_k | x_k-1
         for obj in self.active_objs:
             obj.predict()
@@ -168,35 +186,92 @@ class KF_Tracker():
         # 3. match - these arrays are both N x 2
         # remove matches with IOU below threshold (i.e. too far apart)
         # need change matching algorithm
-        matches = match_radar(locations,detections)
-        print(matches)
+        # print('locations: ', locations, 'detections: ',detections)
+        distances, matches = match_hungarian(locations, detections)
+        # print('matches are: ', matches)
         # traverse object list
         move_to_inactive = []
         for i in range(0,len(self.active_objs)):
             obj = self.active_objs[i]
 
             # update fsld and delete if too high
+            # print('')
+            # try:
+            falseMatch = np.array([])
             if matches[i] == -1:
+                # print('match not detected')
                 obj.fsld += 1
                 obj.all.append(obj.get_coords())
                 obj.tags.append(0) # indicates object not detected in this frame
+                print('fsld: ',obj.fsld)
                 if obj.fsld > self.fsld_max:
                     move_to_inactive.append(i)
-
-            # update Kalman filter
-            else: # object was matched
-                #need to change to allow for multiple matched measurements in detections.
-                #add for j in matches[i], update kalman filter
-                for j in matches[i]:
-                    measure_coords = detections[matches[i][j]]
+                    print('object %d inactive'%obj.id)
+            else:
+                if distances[i][matches[i]]< dist_max:
+                    # print('updating kalman location')
+                    measure_coords = detections[matches[i]]
+                    # print('measure_coords:', measure_coords)
                     obj.update(measure_coords)
                     obj.fsld = 0
                     obj.all.append(obj.get_coords())
                     obj.tags.append(1) # indicates object detected in this frame
+                else:
+                    # print('false match')
+                    np.append(falseMatch, matches[i])
+                    obj.fsld += 1
+                    obj.all.append(obj.get_coords())
+                    obj.tags.append(0) # indicates object not detected in this frame
+                    print('fsld: ',obj.fsld)
+                    if obj.fsld > self.fsld_max:
+                        move_to_inactive.append(i)
+                        print('object %d inactive'%obj.id)
+                    #need to figure out how to figure out how to deal with fake matches
+                    # matches = np.delete(matches,i)
+                    # i -= 1
+            # except:
+            #     print("exception in update", i)
+            # update Kalman filter
+            # else: # object was matched
+                #need to change to allow for multiple matched measurements in detections.
+                #add for j in matches[i], update kalman filter
+                # print('matches in __call__: ', matches)
+                # for j in range(0,len(matches)):
+                #     print(matches[i])
+                #     measure_coords = detections[j]
+                #     print('measure_coords:', measure_coords)
+                #     obj.update(measure_coords)
+                #     obj.fsld = 0
+                #     obj.all.append(obj.get_coords())
+                #     obj.tags.append(1) # indicates object detected in this frame
 
         # for all unmatched objects, intialize new object
+
         for j in range(0,len(detections)):
-            if j not in matches:
+            # print('detections[j]', detections[j])
+
+            # print('matches',matches)
+            # print([detections[j].tolist() in x for x in matches], 'should make new object if False')
+            # try:
+            if len(matches) != 0 and (len(self.active_objs) <=16):
+                if (j not in matches) or (j in falseMatch):
+                    # print('j not in matches')
+                    print(np.min([x[j] for x in distances]))
+                    if  np.min([x[j] for x in distances]) > dist_max:
+                        # print('Making new object at: ', detections[j])
+                        new_obj = KF_Object(detections[j],
+                                            self.id_counter,
+                                            self.frame_num,
+                                            self.delta_t,
+                                            self.mod_err,
+                                            self.meas_err,
+                                            self.state_err)
+                        new_obj.all.append(new_obj.get_coords())
+                        new_obj.tags.append(1) # indicates object detected in this frame
+                        self.active_objs.append(new_obj)
+                        self.id_counter += 1
+            elif len(matches) == 0 and (len(self.active_objs) == 0):
+                # print('Making new object at: ', detections[j])
                 new_obj = KF_Object(detections[j],
                                     self.id_counter,
                                     self.frame_num,
@@ -208,6 +283,10 @@ class KF_Tracker():
                 new_obj.tags.append(1) # indicates object detected in this frame
                 self.active_objs.append(new_obj)
                 self.id_counter += 1
+            # except:
+            #     #make a new object because there are no matches
+            #     print('exception thingy')
+
 
         # move all necessary objects to inactive list
         move_to_inactive.sort()
@@ -226,7 +305,7 @@ class KF_Tracker():
         #4. check for active lead object
         #objects will be designated lead if/when CAN ID 869 and match_lead() are used
         self.check_for_lead()
-
+        print('......')
         return active_object_locations
 
     def all_objs(self):
