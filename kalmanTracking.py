@@ -19,17 +19,22 @@ def match_hungarian(first,second,iou_cutoff = 1):
     # find distances between first and second
     dist = np.zeros([len(first),len(second)])
     # print(first,second)
+    matchings = np.zeros(len(first))-1
     for i in range(0,len(first)):
         for j in range(0,len(second)):
             dist[i,j] = np.sqrt((first[i,0]-second[j,0])**2 + (first[i,1]-second[j,1])**2)
+        if np.argmin(dist[i]) not in matchings:
+            # print(a)
+            matchings[i]=np.argmin(dist[i])
     # print('distances: ',dist)
-    a, b = linear_sum_assignment(dist)
+
+    # a, b = linear_sum_assignment(dist)
 
     # print(a,b)
     # convert into expected form
-    matchings = np.zeros(len(first))-1
-    for idx in range(0,len(a)):
-        matchings[a[idx]] = b[idx]
+
+    # for idx in range(0,len(a)):
+    #     matchings[a[idx]] = b[idx]
     matchings = np.ndarray.astype(matchings,int)
 
     return dist, matchings
